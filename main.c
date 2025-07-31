@@ -31,7 +31,6 @@ int unlzvc(uchar *ibuf,uchar *obuf)
   int iVar8;
   uchar *puVar9;
   uint dbits;
-  uint local_r3_904;
   uint uVar10;
   uint uVar11;
   byte *local_20 [4];
@@ -40,6 +39,8 @@ int unlzvc(uchar *ibuf,uchar *obuf)
   uVar4 = getword(local_20);
   uVar5 = getword(local_20);
   uVar11 = 0;
+  
+  printf("Debug: uVar4=%u, uVar5=%u\n", uVar4, uVar5);
   if (true) {
     switch(uVar5) {
     case 0:
@@ -256,11 +257,11 @@ LAB_0c063420:
             uVar10 = (uint)(bVar2 >> 4);
             uVar5 = 0;
             if (uVar10 != 0xfffffffd) {
-              local_r3_904 = (uVar11 - ((uint)*pbVar6 + (bVar2 & 0xf) * 0x100)) + (int)obuf;
+              puVar9 = obuf + (uVar11 - ((uint)*pbVar6 + (bVar2 & 0xf) * 0x100));
               puVar7 = obuf + uVar11;
               do {
-                uVar1 = *(uchar *)local_r3_904;
-                local_r3_904 = local_r3_904 + 1;
+                uVar1 = *puVar9;
+                puVar9 = puVar9 + 1;
                 uVar11 = uVar11 + 1;
                 uVar5 = uVar5 + 1;
                 *puVar7 = uVar1;
@@ -302,7 +303,6 @@ int main(int argc, char *argv[])
         printf("Erreur: impossible d'ouvrir le fichier d'entrée '%s'\n", argv[1]);
         return 1;
     }
-    
     fseek(input_file, 0, SEEK_END);
     long file_size = ftell(input_file);
     fseek(input_file, 0, SEEK_SET);
@@ -313,7 +313,6 @@ int main(int argc, char *argv[])
         return 1;
     }
     
-    // read file in buffer
     size_t bytes_read = fread(input_buffer, 1, file_size, input_file);
     fclose(input_file);
     
@@ -322,6 +321,11 @@ int main(int argc, char *argv[])
         free(input_buffer);
         return 1;
     }
+    
+    printf("Read file: %ld bytes\n", file_size);
+    printf("Firsts bytes: %02X %02X %02X %02X\n", 
+           input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3]);
+    
     
     // lets say the decompression can be 10x the original size (this is arbitrary)
     uchar *output_buffer = malloc(file_size * 10);
