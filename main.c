@@ -14,8 +14,9 @@ uint getword(uchar **buf)
 {
   ushort uVar1;
   
-  uVar1 = *(ushort *)*buf;
-  *buf = (uchar *)((int)*buf + 2);
+  // read in little-endian
+  uVar1 = (*buf)[0] | ((*buf)[1] << 8);
+  *buf = *buf + 2;
   return (uint)uVar1;
 }
 
@@ -274,6 +275,21 @@ LAB_0c063420:
         } while (dbits != 0);
       } while (!bVar3);
       break;
+    case 9:
+      printf("Case 9 detected - treating as case 10 (raw copy)\n");
+      // Traiter comme case 10 (copie directe) pour l'instant
+      uVar5 = 0;
+      uVar11 = uVar4;
+      if (uVar4 != 0) {
+        do {
+          bVar2 = *local_20[0];
+          local_20[0] = local_20[0] + 1;
+          uVar5 = uVar5 + 1;
+          *obuf = bVar2;
+          obuf = obuf + 1;
+        } while (uVar5 < uVar4);
+      }
+      break;
     case 10:
       uVar5 = 0;
       uVar11 = uVar4;
@@ -323,10 +339,28 @@ int main(int argc, char *argv[])
     }
     
     printf("Read file: %ld bytes\n", file_size);
-    printf("Firsts bytes: %02X %02X %02X %02X\n", 
-           input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3]);
+    printf("First bytes: %02X %02X %02X %02X %02X %02X %02X %02X\n", 
+           input_buffer[0], input_buffer[1], input_buffer[2], input_buffer[3],
+           input_buffer[4], input_buffer[5], input_buffer[6], input_buffer[7]);
+           
+    // Test different starting offsets AND endianness
+    printf("Testing offset 0 (little-endian): ");
+    uchar *test_ptr = input_buffer;
+    uint test1 = test_ptr[0] | (test_ptr[1] << 8);
+    uint test2 = test_ptr[2] | (test_ptr[3] << 8);
+    printf("uVar4=%u, uVar5=%u\n", test1, test2);
     
+    printf("Testing offset 2 (little-endian): ");
+    test_ptr = input_buffer + 2;
+    test1 = test_ptr[0] | (test_ptr[1] << 8);
+    test2 = test_ptr[2] | (test_ptr[3] << 8);
+    printf("uVar4=%u, uVar5=%u\n", test1, test2);
     
+    printf("Testing offset 4 (little-endian): ");
+    test_ptr = input_buffer + 4;
+    test1 = test_ptr[0] | (test_ptr[1] << 8);
+    test2 = test_ptr[2] | (test_ptr[3] << 8);
+    printf("uVar4=%u, uVar5=%u\n", test1, test2);
     // lets say the decompression can be 10x the original size (this is arbitrary)
     uchar *output_buffer = malloc(file_size * 10);
     if (!output_buffer) {
@@ -335,7 +369,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    int decompressed_size = unlzvc(input_buffer, output_buffer);
+    int decompressed_size = unlzvc(input_buffer + 2, output_buffer);  // Test avec offset 2
     
     if (decompressed_size <= 0) {
         printf("Erreur: échec de la décompression\n");
