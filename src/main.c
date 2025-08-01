@@ -250,13 +250,6 @@ int main(int argc, char **argv)
         export_text_chunk(fp, text_chunk, offset);
 
 NEXT_CHUNK:
-        if (offset == 0x0029D194)
-        {
-            FILE *fp2;
-            fp2 = fopen("blablabla.bin", "w+b");
-            fwrite(unpack_buf, sizeof(u8), ch->unpack_size, fp2);
-            fclose(fp2);
-        }
         offset += (sizeof(IFF_CHUNK_HEADER) + ch->size);
     }
 
