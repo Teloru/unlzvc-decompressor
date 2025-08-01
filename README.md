@@ -16,10 +16,10 @@ The LZVC format uses IFF-style chunks with segmented compression, where each fil
 
 ```bash
 # Compile the decompressor
-gcc -o decompressor main.c
+cl /TC /GS- /GR- src/main.c src/unlzvc.c /Iinclude /link
 
 # Extract compressed data
-./decompressor input_file.bin output_file.bin
+main.exe xxx.IFF
 ```
 
 ## File Format
