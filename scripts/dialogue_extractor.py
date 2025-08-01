@@ -1,8 +1,14 @@
 import re
 import sys
 
+def sanitize_spaces(text):
+    text = re.sub(r'FFFFFFFF@', 'FFFFFFFF@  ', text)
+    return text
+
 def extract_dialogue(text):
-    cleaned = re.sub(r'@[^@]*@', '', text)
+    text = sanitize_spaces(text)
+    cleaned = re.sub(r'@[^@]*@', '',  text)
+    cleaned = re.sub(r'  ', '\n', cleaned)
     lines = []
     for line in cleaned.split('\n'):
         line = line.strip()
@@ -13,6 +19,7 @@ def extract_dialogue(text):
 
 def main():
     if len(sys.argv) != 2:
+        print(sys.argv)
         print("Usage: python dialogue_extractor.py input.strings.txt")
         return
     
