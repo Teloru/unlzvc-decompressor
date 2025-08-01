@@ -210,14 +210,14 @@ int main(int argc, char **argv)
         ++num_chunks;
 
         // Display debug information for all chunk types
-        debug_chunk(ch, num_packed_segments, offset);
+        // debug_chunk(ch, num_packed_segments, offset);
             
         if (ch->id != CKID_TEXT) goto NEXT_CHUNK;
 
         ++num_text_chunks;
 
         // Display debug information for TEXT chunks only
-        // debug_chunk(ch, num_packed_segments, offset);
+        debug_chunk(ch, num_packed_segments, offset);
 
         if (num_packed_segments > 0)
         {
