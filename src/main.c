@@ -113,10 +113,55 @@ static char *get_out_filename(const char *in_filename)
     return out_filename;
 }
 
+
+void export_text_chunk(FILE *fp, u8 *text_chunk, u32 offset)
+{
+    TEXT_CHUNK_HEADER *tch;
+    TEXT_CHUNK_ENTRY *tce;
+    char *s;
+
+    tch = (TEXT_CHUNK_HEADER *)text_chunk;
+    tce = (TEXT_CHUNK_ENTRY *)(text_chunk + sizeof(TEXT_CHUNK_HEADER));
+
+    fprintf(
+        fp,
+        "--- TEXT CHUNK ---\n" \
+        "Language: %s\n" \
+        "Strings count: %u\n" \
+        "File offset: %08X\n\n",
+        (char *)(text_chunk + tch->language_offset),
+        tch->num_strings,
+        offset
+    );
+
+    for (s32 i = 0; i < tch->num_strings; ++i)
+    {
+        s = (char *)(text_chunk + tce[i].offset);
+
+        fprintf(
+            fp,
+            "String %d\n" \
+            "Hash: %08X\n",
+            i + 1,
+            tce[i].hash
+        );
+
+        if (s[0])
+        {
+            fprintf(fp, "Data: %s\n\n", s);
+        }
+        else
+        {
+            fprintf(fp, "Data is empty\n\n");
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     u8 *file_map;
     u8 *unpack_buf;
+    u8 *text_chunk;
     char *out_filename;
     FILE *fp;
     u32 file_size;
@@ -146,6 +191,13 @@ int main(int argc, char **argv)
 
     debug_init(argv[1], out_filename, file_size, file_map);
 
+    fp = fopen(out_filename, "w+b");
+    if (!fp)
+    {
+        fprintf(stderr, "\nERROR: Could not create output file\n");
+        goto F_FREE_NAME;
+    }
+
     offset = 0;
     num_chunks = 0;
     num_text_chunks = 0;
@@ -158,14 +210,14 @@ int main(int argc, char **argv)
         ++num_chunks;
 
         // Display debug information for all chunk types
-        // debug_chunk(ch, num_packed_segments, offset);
+        debug_chunk(ch, num_packed_segments, offset);
             
         if (ch->id != CKID_TEXT) goto NEXT_CHUNK;
 
         ++num_text_chunks;
 
         // Display debug information for TEXT chunks only
-        debug_chunk(ch, num_packed_segments, offset);
+        // debug_chunk(ch, num_packed_segments, offset);
 
         if (num_packed_segments > 0)
         {
@@ -188,21 +240,30 @@ int main(int argc, char **argv)
                 debug_unpack(segment_offset, unpack_buf_offset, actual_unpack_size, i, segments_sizes);
             }
             
-            fp = fopen(out_filename, "w+b");
-            fwrite(unpack_buf, sizeof(u8), ch->unpack_size, fp);
-            fclose(fp);
+            text_chunk = unpack_buf;
         }
         else
         {
-            
+            text_chunk = file_map + offset + sizeof(IFF_CHUNK_HEADER);
         }
 
-NEXT_CHUNK:   
+        export_text_chunk(fp, text_chunk, offset);
+
+NEXT_CHUNK:
+        if (offset == 0x0029D194)
+        {
+            FILE *fp2;
+            fp2 = fopen("blablabla.bin", "w+b");
+            fwrite(unpack_buf, sizeof(u8), ch->unpack_size, fp2);
+            fclose(fp2);
+        }
         offset += (sizeof(IFF_CHUNK_HEADER) + ch->size);
     }
 
+    fclose(fp);
     fprintf(stderr, "Found %u TEXT chunk(s) (Total chunks: %u)\n", num_text_chunks, num_chunks);
 
+F_FREE_NAME:
     free(out_filename);
 F_FREE_MAP:
     free(file_map);
