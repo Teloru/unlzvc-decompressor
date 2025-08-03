@@ -1,35 +1,88 @@
 import re
 import sys
 
-def sanitize_spaces(text):
-    text = re.sub(r'FFFFFFFF@', 'FFFFFFFF@  ', text)
-    return text
+def extract_dialogue_text(line):
+    """Extract clean dialogue text from a line with tags"""
+    
+    # skip empty lines
+    if not line.strip():
+        return None
+    
+    # pattern 1: characters dialogue
+    # example: @RESOURCE:\ACTORS\HOIGLE...@COLOR:FFF08080@      Text here
+    character_match = re.search(r'@RESOURCE:\\ACTORS\\(?:HOIGLE|MOIGLE).*?@COLOR:[A-F0-9]+@\s*(.+?)(?:@NEWLINE:|@PAUSE:|@CLEARWINDOW:|$)', line, re.IGNORECASE)
+    if character_match:
+        dialogue = character_match.group(1).strip()
+        dialogue = re.sub(r'@[^@]*@', '', dialogue)
+        return dialogue.strip() if dialogue else None
+    
+    # pattern 2: simple dialogue lines (example: "YOU WIN!", "YOU LOSE!")
+    simple_line = re.sub(r'@[^@]*@', '', line).strip()
+    if simple_line and len(simple_line) < 50 and simple_line.count(' ') < 10:
+        return simple_line
+
+    # pattern 3: mixed text with color codes
+    # Extract text between @COLOR:...@ tags
+    if '@COLOR:' in line:
+        cleaned = re.sub(r'@[^@]*@', ' ', line)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        # only return if it looks like dialogue (= contains lowercase letters, reasonable length)
+        if cleaned and len(cleaned) > 10 and any(c.islower() for c in cleaned):
+            return cleaned
+    
+    return None
 
 def extract_dialogue(text):
-    text = sanitize_spaces(text)
-    cleaned = re.sub(r'@[^@]*@', '',  text)
-    cleaned = re.sub(r'  ', '\n', cleaned)
-    lines = []
-    for line in cleaned.split('\n'):
-        line = line.strip()
-        if line:
-            lines.append(line)
+    """Extract all dialogue lines from the text"""
+    lines = text.split('\n')
+    dialogues = []
     
-    return lines
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        extracted = extract_dialogue_text(line)
+        if extracted:
+            dialogues.append(extracted)
+    
+    return dialogues
 
 def main():
     if len(sys.argv) != 2:
-        print(sys.argv)
-        print("Usage: python dialogue_extractor.py input.strings.txt")
+        print("Usage: python dialogue_extractor.py input.strings.txt.data.txt")
         return
     
-    with open(sys.argv[1], 'r', encoding='utf-8') as f:
-        content = f.read()
+    input_file = sys.argv[1]
+    output_file = "output.txt"
+    
+    content = None
+    for encoding in ['utf-8', 'latin-1', 'cp1252']:
+        try:
+            with open(input_file, 'r', encoding=encoding) as f:
+                content = f.read()
+            print(f"Successfully read {input_file} using {encoding} encoding")
+            break
+        except UnicodeDecodeError:
+            continue
+    
+    if content is None:
+        print("Could not read file with any supported encoding")
+        return
     
     dialogues = extract_dialogue(content)
     
-    for dialogue in dialogues:
-        print(dialogue)
+    try:
+        with open(output_file, 'w', encoding='utf-8') as f:
+            for dialogue in dialogues:
+                f.write(dialogue + '\n')
+        
+        print(f"Extracted {len(dialogues)} dialogues to {output_file}")
+        
+    except Exception as e:
+        print(f"Error writing to {output_file}: {e}")
+        return
 
 if __name__ == "__main__":
     main()
