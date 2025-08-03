@@ -55,7 +55,7 @@ def main():
         return
     
     input_file = sys.argv[1]
-    output_file = "output.txt"
+    output_file = "all_dialogues.txt"
     
     content = None
     for encoding in ['utf-8', 'latin-1', 'cp1252']:
@@ -66,9 +66,12 @@ def main():
             break
         except UnicodeDecodeError:
             continue
+        except FileNotFoundError:
+            print(f"Error: File {input_file} not found")
+            return
     
     if content is None:
-        print("Could not read file with any supported encoding")
+        print("Error: Could not read file with any supported encoding")
         return
     
     dialogues = extract_dialogue(content)
