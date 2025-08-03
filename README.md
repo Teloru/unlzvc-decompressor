@@ -14,6 +14,47 @@ The LZVC format uses IFF-style chunks with segmented compression, where each fil
 
 ## Usage
 
+### Quick Start (recommended)
+
+1. **Place your IFF files** in the `scripts` folder alongside `process_iff_files.bat`
+2. **Double-click** `process_iff_files.bat`
+3. **Wait** for the 3-step processing to complete:
+   - Step 1: Extract compressed data from all IFF files
+   - Step 2: Parse and extract Data fields 
+   - Step 3: Filter and extract clean dialogue
+4. **Find your extracted dialogue** in `floigan_bros_all_dialogues.txt`
+
+The batch script will automatically:
+- Process all `.IFF` files in the scripts folder
+- Extract and decompress the dialogue data  
+- Filter out UI elements and menu text
+- Generate clean dialogue output in `floigan_bros_all_dialogues.txt`
+- Clean up temporary files
+
+### Manual Usage
+
+If you prefer to run the tools manually:
+
+```bash
+# 1. Extract compressed data from IFF files
+main.exe your_file.IFF
+
+# 2. Process the extracted data to get clean dialogue
+cd scripts
+python process_all_iff.py
+```
+
+### Output
+
+The final `floigan_bros_all_dialogues.txt` will contain clean dialogue lines like:
+```
+Hey Moigle, I found some neat stuff in here!
+I think this junk might be worth something.
+Spitz, you're always looking for treasure.
+```
+
+## Build
+
 ```bash
 # Compile the decompressor
 cl /TC /GS- /GR- src/main.c src/unlzvc.c /Iinclude /link
@@ -46,7 +87,16 @@ struct IFF_CHUNK_HEADER {
 
 ## Current Status
 
-- todo
+✅ **Fully functional dialogue extraction pipeline**
+- UNLZVC decompression working for IFF files
+- Automated batch processing script
+- Successfully extracts 389+ dialogue lines from Floigan Bros
+
+🔧 **What works:**
+- Processing all 34 IFF files from Floigan Bros
+- Automatic decompression and text extraction
+- Smart filtering to separate dialogue from UI text
+- One-click batch processing via `process_iff_files.bat`
 
 ## Disclaimer
 
