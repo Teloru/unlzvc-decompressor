@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+import os
+import sys
+import subprocess
+import glob
+from pathlib import Path
+
+def find_iff_files(directory):
+    """Find all .IFF files in the given directory"""
+    iff_files = []
+    for file in os.listdir(directory):
+        if file.upper().endswith('.IFF'):
+            iff_files.append(os.path.join(directory, file))
+    return sorted(iff_files)
+
+def process_iff_files(iff_directory, main_exe_path):
+    """Process all IFF files with main.exe"""
+    
+    print(f"🔍 Scanning for .IFF files in: {iff_directory}")
+    iff_files = find_iff_files(iff_directory)
+    
+    if not iff_files:
+        print("❌ No .IFF files found!")
+        return False
+    
+    print(f"📁 Found {len(iff_files)} .IFF files:")
+    for iff_file in iff_files:
+        print(f"  - {os.path.basename(iff_file)}")
+    
+    print(f"\n🔧 Processing all files with main.exe...")
+    
+    try:
+        # Run main.exe with all IFF files at once
+        cmd = [main_exe_path] + iff_files
+        print(f"Running command: {' '.join([os.path.basename(main_exe_path)] + [os.path.basename(f) for f in iff_files])}")
+        
+        result = subprocess.run(cmd, 
+                              capture_output=True, text=True, 
+                              encoding='latin-1', cwd=iff_directory)
+        
+        if result.returncode == 0:
+            print(f"main.exe completed successfully")
+            print(f"Debug output:\n{result.stderr}")
+            
+            # The output should be in all_files.strings.txt in the iff_directory (where main.exe runs)
+            combined_strings_file = os.path.join(iff_directory, "all_files.strings.txt")
+            
+            if os.path.exists(combined_strings_file):
+                print(f"✅ Output file created: {combined_strings_file}")
+                return combined_strings_file
+            else:
+                print(f"Expected output file not found: {combined_strings_file}")
+                return False
+        else:
+            print(f"main.exe failed: {result.stderr}")
+            return False
+    
+    except Exception as e:
+        print(f"Exception running main.exe: {e}")
+        return False
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python process_all_iff.py <iff_directory>")
+        print("Example: python process_all_iff.py \"../\"")
+        return
+    
+    iff_directory = sys.argv[1]
+    # Use relative path to main.exe in parent directory
+    main_exe_path = os.path.join(os.path.dirname(__file__), "..", "main.exe")
+    
+    # Validate inputs
+    if not os.path.isdir(iff_directory):
+        print(f"Directory not found: {iff_directory}")
+        return
+    
+    if not os.path.isfile(main_exe_path):
+        print(f"main.exe not found: {main_exe_path}")
+        return
+    
+    print("✨ Floigan Bros Complete Dialogue Extractor")
+    print("=" * 50)
+    
+    # Step 1: Process all IFF files
+    combined_strings_file = process_iff_files(iff_directory, main_exe_path)
+    if not combined_strings_file:
+        return
+    
+    # Step 2: Extract data fields
+    print(f"\nExtracting data fields...")
+    data_file = combined_strings_file + ".data.txt"
+    
+    try:
+        # Import and use extract_data.py
+        sys.path.append(os.path.dirname(__file__))
+        from extract_data import extract_data_fields
+        
+        content = None
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                with open(combined_strings_file, 'r', encoding=encoding) as f:
+                    content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if content is None:
+            print("Could not read combined strings file")
+            return
+        
+        data_fields = extract_data_fields(content)
+        
+        with open(data_file, 'w', encoding='utf-8') as f:
+            for field in data_fields:
+                f.write(field + '\n')
+        
+        print(f"Data fields saved to: {data_file}")
+        
+    except Exception as e:
+        print(f"Error extracting data fields: {e}")
+        return
+    
+    # Step 3: Extract dialogues
+    print(f"\n💬 Extracting dialogues...")
+    
+    try:
+        from dialogue_extractor import extract_dialogue
+        
+        content = None
+        for encoding in ['utf-8', 'latin-1', 'cp1252']:
+            try:
+                with open(data_file, 'r', encoding=encoding) as f:
+                    content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if content is None:
+            print("Could not read data file")
+            return
+        
+        dialogues = extract_dialogue(content)
+        
+        final_output = os.path.join(iff_directory, "floigan_bros_all_dialogues.txt")
+        with open(final_output, 'w', encoding='utf-8') as f:
+            f.write("# Floigan Bros - Complete Dialogue Extraction\n")
+            f.write(f"# Extracted from {len(find_iff_files(iff_directory))} IFF files\n")
+            f.write("# Generated by unlzvc-decompressor\n\n")
+            
+            for dialogue in dialogues:
+                f.write(dialogue + '\n')
+        
+        print(f"🎉 SUCCESS! Extracted {len(dialogues)} dialogues!")
+        print(f"📝 Final output: {final_output}")
+        
+    except Exception as e:
+        print(f"Error extracting dialogues: {e}")
+        return
+
+if __name__ == "__main__":
+    main()
