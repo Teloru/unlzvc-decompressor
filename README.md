@@ -93,9 +93,8 @@ struct IFF_CHUNK_HEADER {
 - Successfully extracts 389+ dialogue lines from Floigan Bros
 
 🔧 **What works:**
-- Processing all 34 IFF files from Floigan Bros
+- Processing IFF files from Floigan Bros
 - Automatic decompression and text extraction
-- Smart filtering to separate dialogue from UI text
 - One-click batch processing via `process_iff_files.bat`
 
 ## Disclaimer
