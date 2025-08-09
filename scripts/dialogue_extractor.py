@@ -145,9 +145,9 @@ def extract_dialogue_from_string(line):
             if speaker_match:
                 result['speaker'] = speaker_match.group(1)
         elif command in ["REDBUTTON", "GREENBUTTON", "YELLOWBUTTON", "BLUEBUTTON"]:
-            # Extract button name and its parameter
+            # Extract button name and its parameter, integrate directly in dialogue
             button_color = command.replace('BUTTON', '')
-            result['buttons'].append(f"[{button_color}: {param}]")
+            dialogue_parts.append(f"[{button_color}: {param}]")
         elif command == "NEWLINE":
             dialogue_parts.append("\n")
         elif command == "NEWPARAGRAPH":
@@ -240,9 +240,7 @@ def format_output(dialogue_data):
     if dialogue_data['speaker']:
         lines.append(f"[{dialogue_data['speaker']}]")
     
-    # Add buttons if they exist
-    if dialogue_data['buttons']:
-        lines.extend(dialogue_data['buttons'])
+    # Skip separate button handling since they're now integrated in dialogue
     
     # Add main dialogue
     if dialogue_data['dialogue']:
