@@ -81,6 +81,26 @@ def parse_command_block(block):
     # unknown format - maybe simple text?
     return "UNKNOWN", content
 
+def split_dialogue_by_speakers(line):
+    """Split a line into multiple dialogues when speakers change after CLEARWINDOW"""
+    
+    if '@CLEARWINDOW@' not in line or '@RESOURCE:\\ACTORS\\' not in line:
+        # no speaker changes -> process normally
+        return [extract_dialogue_from_string(line)]
+    
+    # split by CLEARWINDOW to get dialogue segments
+    segments = line.split('@CLEARWINDOW@')
+    dialogues = []
+    
+    for segment in segments:
+        segment = segment.strip()
+        if segment:
+            extracted = extract_dialogue_from_string(segment)
+            if extracted:
+                dialogues.append(extracted)
+    
+    return [d for d in dialogues if d]  # filter out None results
+
 def extract_dialogue_from_string(line):
     """Extract dialogue from a string by handling commands"""
     
@@ -153,7 +173,8 @@ def extract_dialogue_from_string(line):
         elif command == "NEWPARAGRAPH":
             dialogue_parts.append("\n\n")
         elif command == "CLEARWINDOW":
-            dialogue_parts.append(" | ")
+            # Skip CLEARWINDOW since we use it as separator now
+            pass
         # Ignore UI/formatting commands completely
         elif command in ["COLOR", "PAUSE", "USEBUTTONS", "USEBUTTONSNOHELP", "PAUSEGAME", 
                          "SCROLLING", "BORDER", "OPEN", "CLOSE", "SCALEIN", "SCALEOUT",
@@ -291,18 +312,21 @@ def extract_dialogue(text):
         if line.startswith('Data:'):
             data_content = line[5:].strip()  # Remove "Data:"
             if data_content and data_content != "Data is empty":
-                extracted = extract_dialogue_from_string(data_content)
+                # handle speaker changes
+                extracted_list = split_dialogue_by_speakers(data_content)
+                for extracted in extracted_list:
+                    if extracted:
+                        formatted = format_output(extracted)
+                        if formatted:
+                            dialogues.append(formatted)
+        else:
+            # process other lines normally
+            extracted_list = split_dialogue_by_speakers(line)
+            for extracted in extracted_list:
                 if extracted:
                     formatted = format_output(extracted)
                     if formatted:
                         dialogues.append(formatted)
-        else:
-            # Process other lines normally
-            extracted = extract_dialogue_from_string(line)
-            if extracted:
-                formatted = format_output(extracted)
-                if formatted:
-                    dialogues.append(formatted)
     
     return dialogues
 
