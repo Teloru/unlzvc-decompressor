@@ -149,13 +149,18 @@ def extract_dialogue_from_string(line):
             button_color = command.replace('BUTTON', '')
             result['buttons'].append(f"[{button_color}: {param}]")
         elif command == "NEWLINE":
-            dialogue_parts.append("\\n")
-            result['formatting'].append("newline")
+            dialogue_parts.append("\n")
         elif command == "NEWPARAGRAPH":
-            dialogue_parts.append("\\n\\n")
-            result['formatting'].append("newparagraph")
-        # Ignore color commands and other formatting commands
-        elif command in ["COLOR", "PAUSE", "CLEARWINDOW"]:
+            dialogue_parts.append("\n\n")
+        elif command == "CLEARWINDOW":
+            dialogue_parts.append(" | ")
+        # Ignore UI/formatting commands completely
+        elif command in ["COLOR", "PAUSE", "USEBUTTONS", "USEBUTTONSNOHELP", "PAUSEGAME", 
+                         "SCROLLING", "BORDER", "OPEN", "CLOSE", "SCALEIN", "SCALEOUT",
+                         "FADEIN", "FADEOUT", "GLASS", "AUTOFADE", "PRIORITY", "WAIT", 
+                         "IGNOREWAIT", "WINDOWLIFEMATCHAUDIO", "OPENRATE", "APPEARANCECOUNT",
+                         "MORE", "MOIGLEICON", "SPEECH", "DIALOGRANDOM", "DIALOGLIST",
+                         "DIALOGSECTION", "DIALOGSEQUENCE"]:
             pass
         elif command == "UNKNOWN" and param:
             # For unknown commands, keep the parameter if it's text
@@ -191,13 +196,45 @@ def extract_dialogue_from_string(line):
     
     return result if result['dialogue'] or result['title'] or result['buttons'] else None
 
+def clean_dialogue_text(text):
+    """Clean dialogue text from formatting artifacts"""
+    if not text:
+        return text
+    
+    # Remove common formatting artifacts
+    text = re.sub(r'\bNEWPARAGRAPH\b', '\n\n', text)
+    text = re.sub(r'\bNEWLINE\b', '\n', text)
+    text = re.sub(r'\bCLEARWINDOW\b', ' | ', text)
+    text = re.sub(r'\bUSEBUTTONS\b', '', text)
+    text = re.sub(r'\bUSEBUTTONSNOHELP\b', '', text)
+    text = re.sub(r'\bPAUSEGAME\b', '', text)
+    text = re.sub(r'\bSCROLLING\b', '', text)
+    text = re.sub(r'\bBORDER\b', '', text)
+    text = re.sub(r'\bOPEN:\w+\b', '', text)
+    text = re.sub(r'\bCLOSE:\w+\b', '', text)
+    text = re.sub(r'\bSCALEIN\b', '', text)
+    text = re.sub(r'\bSCALEOUT\b', '', text)
+    
+    # Remove emotional modifiers at the start of sentences
+    text = re.sub(r',MODE\s*', '', text)
+    text = re.sub(r',HAPPY\s*', '', text)
+    text = re.sub(r',SAD\s*', '', text)
+    text = re.sub(r',ANGRY\s*', '', text)
+    
+    # Clean multiple spaces and line breaks
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    
+    return text.strip()
+
 def format_output(dialogue_data):
     """Format extracted data for output"""
     lines = []
     
     # Add title if it exists
     if dialogue_data['title']:
-        lines.append(f"[TITLE: {dialogue_data['title']}]")
+        clean_title = clean_dialogue_text(dialogue_data['title'])
+        lines.append(f"[TITLE: {clean_title}]")
     
     # Add speaker if it exists
     if dialogue_data['speaker']:
@@ -209,9 +246,14 @@ def format_output(dialogue_data):
     
     # Add main dialogue
     if dialogue_data['dialogue']:
-        lines.append(dialogue_data['dialogue'])
+        clean_dialogue = clean_dialogue_text(dialogue_data['dialogue'])
+        if clean_dialogue:  # Only add if there's actual content after cleaning
+            lines.append(clean_dialogue)
     
-    return ' '.join(lines)
+    result = ' '.join(lines)
+    # Final cleanup of the entire line
+    result = clean_dialogue_text(result)
+    return result
 
 def extract_dialogue(text):
     """Extract all dialogue lines from the text"""
