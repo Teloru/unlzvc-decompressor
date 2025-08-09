@@ -1,37 +1,217 @@
 import re
 import sys
 
-def extract_dialogue_text(line):
-    """Extract clean dialogue text from a line with tags"""
+# Mapping of post-demo commands (binary format) based on iff.h
+TEXTBOX_COMMANDS = {
+    0x01: "UNKNOWN",
+    0x02: "COLOR", 
+    0x03: "REDBUTTON",
+    0x04: "GREENBUTTON", 
+    0x05: "YELLOWBUTTON",
+    0x06: "BLUEBUTTON",
+    0x07: "NEWLINE",
+    0x08: "WINDOWWIDTH",
+    0x09: "WINDOWHEIGHT", 
+    0x0A: "FONTHEIGHT",
+    0x0B: "BORDERSIZE",
+    0x0C: "MODELSCALE",
+    0x0D: "RESOURCEOFFSETY",
+    0x0E: "RESOURCEOFFSETX",
+    0x0F: "NEWPARAGRAPH",
+    0x10: "USEBUTTONS",
+    0x11: "USEBUTTONSNOHELP",
+    0x12: "WINDOWPOSITIONX",
+    0x13: "WINDOWPOSITIONY",
+    0x14: "PAUSEGAME",
+    0x15: "CLEARWINDOW",
+    0x16: "SCROLLING",
+    0x17: "RESOURCE",
+    0x18: "MODEL",
+    0x19: "JUSTIFY",
+    0x1A: "BORDER",
+    0x1B: "CORNER",
+    0x1C: "TITLE",
+    0x1D: "TITLECURVATURE",
+    0x1E: "TITLESCALE",
+    0x1F: "TITLEOFFSETY",
+    0x20: "ANIM",
+    0x21: "CSRY",
+    0x22: "WINDOWLIFETIME",
+    0x23: "WINDOWLIFEMATCHAUDIO",
+    0x24: "OPENRATE",
+    0x25: "FADEIN",
+    0x26: "SCALEIN",
+    0x27: "APPEARANCECOUNT",
+    0x28: "GLASS",
+    0x29: "AUTOFADE",
+    0x2A: "MORE",
+    0x2B: "PAUSE",
+    0x2C: "MOIGLEICON",
+    0x2D: "PRIORITY",
+    0x2E: "SPEECH",
+    0x2F: "DIALOGRANDOM",
+    0x30: "DIALOGLIST",
+    0x31: "DIALOGSECTION",
+    0x32: "DIALOGSEQUENCE",
+    0x33: "WAIT",
+    0x34: "IGNOREWAIT",
+}
+
+def parse_command_block(block):
+    """Parse a command block @...@ and return (command, parameter)"""
+    if not block.startswith('@') or not block.endswith('@'):
+        return None, None
     
-    # skip empty lines
+    content = block[1:-1]  # remove the @
+    
+    # demo format: @COLOR:FF40FF40@
+    if ':' in content:
+        parts = content.split(':', 1)
+        command = parts[0]
+        param = parts[1] if len(parts) > 1 else ""
+        return command, param
+    
+    # post-demo format: @\x02FF40FF40@
+    elif len(content) > 0 and ord(content[0]) < 32:  # control character
+        cmd_byte = ord(content[0])
+        param = content[1:] if len(content) > 1 else ""
+        command = TEXTBOX_COMMANDS.get(cmd_byte, f"UNK_{cmd_byte:02X}")
+        return command, param
+    
+    # unknown format - maybe simple text?
+    return "UNKNOWN", content
+
+def extract_dialogue_from_string(line):
+    """Extract dialogue from a string by handling commands"""
+    
     if not line.strip():
         return None
     
-    # pattern 1: characters dialogue
-    # example: @RESOURCE:\ACTORS\HOIGLE...@COLOR:FFF08080@      Text here
-    character_match = re.search(r'@RESOURCE:\\ACTORS\\(?:HOIGLE|MOIGLE).*?@COLOR:[A-F0-9]+@\s*(.+?)(?:@NEWLINE:|@PAUSE:|@CLEARWINDOW:|$)', line, re.IGNORECASE)
-    if character_match:
-        dialogue = character_match.group(1).strip()
-        dialogue = re.sub(r'@[^@]*@', '', dialogue)
-        return dialogue.strip() if dialogue else None
+    # clean multiple alignment spaces
+    line = re.sub(r'\s+', ' ', line.strip())
     
-    # pattern 2: simple dialogue lines (example: "YOU WIN!", "YOU LOSE!")
-    simple_line = re.sub(r'@[^@]*@', '', line).strip()
-    if simple_line and len(simple_line) < 50 and simple_line.count(' ') < 10:
-        return simple_line
+    result = {
+        'dialogue': '',
+        'speaker': '',
+        'title': '',
+        'buttons': [],
+        'formatting': []
+    }
+    
+    # if no commands (@), it's a simple string
+    if '@' not in line:
+        result['dialogue'] = line
+        return result
 
-    # pattern 3: mixed text with color codes
-    # Extract text between @COLOR:...@ tags
-    if '@COLOR:' in line:
-        cleaned = re.sub(r'@[^@]*@', ' ', line)
-        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
-        
-        # only return if it looks like dialogue (= contains lowercase letters, reasonable length)
-        if cleaned and len(cleaned) > 10 and any(c.islower() for c in cleaned):
-            return cleaned
+    # parse all command blocks
+    current_pos = 0
+    dialogue_parts = []
     
-    return None
+    while current_pos < len(line):
+        # look for the next @
+        at_pos = line.find('@', current_pos)
+        
+        if at_pos == -1:
+            # no more commands, add the rest as dialogue
+            remaining = line[current_pos:].strip()
+            if remaining:
+                dialogue_parts.append(remaining)
+            break
+        
+        # add text before the command
+        if at_pos > current_pos:
+            text_before = line[current_pos:at_pos].strip()
+            if text_before:
+                dialogue_parts.append(text_before)
+        
+        # look for the end of the command
+        end_pos = line.find('@', at_pos + 1)
+        if end_pos == -1:
+            # malformed command, add @ and continue
+            dialogue_parts.append('@')
+            current_pos = at_pos + 1
+            continue
+        
+        # extract and parse the command
+        command_block = line[at_pos:end_pos + 1]
+        command, param = parse_command_block(command_block)
+        
+        # process according to command type
+        if command == "TITLE":
+            result['title'] = param
+        elif command == "RESOURCE" and param and "ACTORS" in param.upper():
+            # Extract speaker name from RESOURCE:\ACTORS\HOIGLE
+            speaker_match = re.search(r'ACTORS\\([A-Z]+)', param.upper())
+            if speaker_match:
+                result['speaker'] = speaker_match.group(1)
+        elif command in ["REDBUTTON", "GREENBUTTON", "YELLOWBUTTON", "BLUEBUTTON"]:
+            # Extract button name and its parameter
+            button_color = command.replace('BUTTON', '')
+            result['buttons'].append(f"[{button_color}: {param}]")
+        elif command == "NEWLINE":
+            dialogue_parts.append("\\n")
+            result['formatting'].append("newline")
+        elif command == "NEWPARAGRAPH":
+            dialogue_parts.append("\\n\\n")
+            result['formatting'].append("newparagraph")
+        # Ignore color commands and other formatting commands
+        elif command in ["COLOR", "PAUSE", "CLEARWINDOW"]:
+            pass
+        elif command == "UNKNOWN" and param:
+            # For unknown commands, keep the parameter if it's text
+            if param and any(c.isalpha() for c in param):
+                dialogue_parts.append(param)
+        
+        current_pos = end_pos + 1
+    
+    # assemble the final dialogue
+    result['dialogue'] = ' '.join(dialogue_parts).strip()
+    
+    # clean color codes that might remain (FFFFFFFF format)
+    result['dialogue'] = re.sub(r'\b[A-F0-9]{8}\b', '', result['dialogue'])
+    result['dialogue'] = re.sub(r'\b[A-F0-9]{6}\b', '', result['dialogue'])
+    
+    # clean sound file references (.ss)
+    result['dialogue'] = re.sub(r'\.\w+\.ss', '', result['dialogue'])
+    
+    # clean technical codes at the beginning (numbers followed by characters)
+    result['dialogue'] = re.sub(r'^\d+\s+\w+\s*', '', result['dialogue'])
+    
+    # clean technical references like \ACTORS\INTERFACE
+    result['dialogue'] = re.sub(r'\\ACTORS\\[A-Z]+', '', result['dialogue'])
+    
+    # clean multiple newlines
+    result['dialogue'] = re.sub(r'\\n\\n+', '\\n\\n', result['dialogue'])
+    result['dialogue'] = re.sub(r'\\n+$', '', result['dialogue'])  # Remove trailing \n
+    
+    # clean multiple spaces and isolated @
+    result['dialogue'] = re.sub(r'\s+', ' ', result['dialogue']).strip()
+    result['dialogue'] = re.sub(r'@+', '', result['dialogue']).strip()
+    result['dialogue'] = re.sub(r'#+', '', result['dialogue']).strip()
+    
+    return result if result['dialogue'] or result['title'] or result['buttons'] else None
+
+def format_output(dialogue_data):
+    """Format extracted data for output"""
+    lines = []
+    
+    # Add title if it exists
+    if dialogue_data['title']:
+        lines.append(f"[TITLE: {dialogue_data['title']}]")
+    
+    # Add speaker if it exists
+    if dialogue_data['speaker']:
+        lines.append(f"[{dialogue_data['speaker']}]")
+    
+    # Add buttons if they exist
+    if dialogue_data['buttons']:
+        lines.extend(dialogue_data['buttons'])
+    
+    # Add main dialogue
+    if dialogue_data['dialogue']:
+        lines.append(dialogue_data['dialogue'])
+    
+    return ' '.join(lines)
 
 def extract_dialogue(text):
     """Extract all dialogue lines from the text"""
@@ -43,9 +223,43 @@ def extract_dialogue(text):
         if not line:
             continue
             
-        extracted = extract_dialogue_text(line)
-        if extracted:
-            dialogues.append(extracted)
+        # Ignore metadata lines and other non-dialogue elements
+        if (line.startswith('String ') or line.startswith('Hash:') or 
+            line.startswith('===') or line.startswith('---') or
+            line.startswith('Language:') or line.startswith('Strings count:') or
+            line.startswith('File offset:') or line == 'Data is empty' or
+            line.startswith('#') or line.startswith('Generated by') or
+            line.startswith('Extracted from')):
+            continue
+        
+        # Ignore sound files (.ss)
+        if line.endswith('.ss') or re.match(r'^\.\w+\.ss$', line):
+            continue
+            
+        # Ignore lines too short that are probably not dialogue
+        if len(line) < 4:
+            continue
+            
+        # Ignore lines that only contain technical codes/references
+        if re.match(r'^[A-Z0-9_]+$', line) and len(line) < 15:
+            continue
+            
+        # Process Data: lines
+        if line.startswith('Data:'):
+            data_content = line[5:].strip()  # Remove "Data:"
+            if data_content and data_content != "Data is empty":
+                extracted = extract_dialogue_from_string(data_content)
+                if extracted:
+                    formatted = format_output(extracted)
+                    if formatted:
+                        dialogues.append(formatted)
+        else:
+            # Process other lines normally
+            extracted = extract_dialogue_from_string(line)
+            if extracted:
+                formatted = format_output(extracted)
+                if formatted:
+                    dialogues.append(formatted)
     
     return dialogues
 
