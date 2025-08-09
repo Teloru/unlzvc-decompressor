@@ -215,6 +215,9 @@ def clean_dialogue_text(text):
     text = re.sub(r'\bSCALEIN\b', '', text)
     text = re.sub(r'\bSCALEOUT\b', '', text)
     
+    # remove audio file references (.ss files)
+    text = re.sub(r'\.[a-zA-Z0-9_-]+\.ss\b', '', text)  # Catches all .xxx.ss patterns
+    
     # Remove emotional modifiers at the start of sentences
     text = re.sub(r',MODE\s*', '', text)
     text = re.sub(r',HAPPY\s*', '', text)
